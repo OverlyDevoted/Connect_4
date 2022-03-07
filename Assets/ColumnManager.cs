@@ -5,7 +5,7 @@ using System;
 
 public class ColumnManager : MonoBehaviour
 {
-    [SerializeField] List<GameObject> slots;
+    [SerializeField] List<SlotManager> slots;
     int freeSlotIndex = 0;
     int slotMax;
     public EventHandler OnFilled;
@@ -14,16 +14,17 @@ public class ColumnManager : MonoBehaviour
     void Start()
     {
         foreach (Transform a in transform)
-            slots.Add(a.gameObject);
+            slots.Add(a.gameObject.GetComponent<SlotManager>());
         slotMax = slots.Count;
     }
 
-    public int PlaceCircle(GameObject circle, SlotManager.Player occupant)
+    public int PlaceCircle(SlotManager.Player occupant, Color color)
     {
         if (!CanPlaceCircle())
             return -1;
-        Instantiate(circle, slots[freeSlotIndex].transform.position, Quaternion.identity, slots[freeSlotIndex].transform);
-        slots[freeSlotIndex].GetComponent<SlotManager>().SetOccupator(occupant);
+        slots[freeSlotIndex].FillSlot(occupant, color);
+        //Instantiate(circle, slots[freeSlotIndex].transform.position, Quaternion.identity, slots[freeSlotIndex].transform);
+        //slots[freeSlotIndex].SetOccupator(occupant);
         freeSlotIndex++;
         if (freeSlotIndex == slotMax)
             OnFilled?.Invoke(this, EventArgs.Empty);
@@ -35,22 +36,17 @@ public class ColumnManager : MonoBehaviour
             return false;
         return true;
     }
-    public GameObject GetSlot(int index)
+    public SlotManager GetSlot(int index)
     {
         return slots[index];
     }
     public void EmptySlots()
     {
         freeSlotIndex = 0;
-        foreach(GameObject slot in slots)
+        int slotLenght = slots.Count;
+        for(int i = 0; i<slotLenght;i++)
         {
-            slot.GetComponent<SlotManager>().Reset();
-            if (slot.transform.childCount != 0)
-            {
-                GameObject slotObject = slot.transform.GetChild(0).gameObject;
-                Destroy(slotObject);
-            }
-
+            slots[i].Reset();
         }
     }
 }

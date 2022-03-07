@@ -19,7 +19,7 @@ public class GameManager : MonoBehaviour
     public GameObject lobbyScreen;
     public GameObject uiCanvas;
 
-    private GameObject[] players;
+    private PlayerLogic player;
     public BoardManager board;
     public WebSocketReceiver webSocket;
 
@@ -35,20 +35,37 @@ public class GameManager : MonoBehaviour
 
     private void Awake()
     {
-        players = GameObject.FindGameObjectsWithTag("Player");
+        player = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerLogic>();
         webSocket.OnConnect += SuccessfullyConnected;
         webSocket.OnJoin += ChangeScreen;
         webSocket.OnLostConnection += LostConnection;
         webSocket.onStartGame += DisableUI;
-        webSocket.onStartGame += GetPlayerNumber;
-        webSocket.onStartGame += StartGame;
+        webSocket.onStartGame += board.EmptySlots;
+        webSocket.onStartGame += player.AllowToMove;
+        webSocket.onStartGame += () =>
+        {
+            playerNumber = GetPlayerNumber();
+            if (playerNumber == 0)
+            {
+                Debug.Log("Yes");
+                player.StartTurn();
+                
+                player.onTurnEndInt += webSocket.SendTurn;
+                player.onTurnEndInt += board.PlaceObject;
+            }
+        };
+        
     }
     private void Start()
     {
+        
         board.OnGameEnd += EndGame;
-        OnGameStart += players[1].GetComponent<PlayerLogic>().AllowToMove;
-        OnGameStart += players[0].GetComponent<PlayerLogic>().AllowToMove;
-        OnGameStart += players[1].GetComponent<PlayerLogic>().StartTurn;
+        
+        //OnGameStart += players[1].GetComponent<PlayerLogic>().AllowToMove;
+        //OnGameStart += players[0].GetComponent<PlayerLogic>().AllowToMove;
+        //OnGameStart += players[1].GetComponent<PlayerLogic>().StartTurn;
+        
+        
         screenState = ScreenState.INITIAL;
     }
 
@@ -125,21 +142,19 @@ public class GameManager : MonoBehaviour
         winParticles.GetComponent<ParticleSystemRenderer>().material = yellowMaterial;
     }
 
-    public void StartGame()
+    public void StartGame(object obj, EventArgs e)
     {
-        board.EmptySlots();
-        players[0].GetComponent<PlayerLogic>().OnTurnEnd += TurnEnds;
-        players[1].GetComponent<PlayerLogic>().OnTurnEnd += TurnEnds;
-        players[0].GetComponent<PlayerLogic>().OnTurnEnd += players[1].GetComponent<PlayerLogic>().StartTurn;
-        players[1].GetComponent<PlayerLogic>().OnTurnEnd += players[0].GetComponent<PlayerLogic>().StartTurn;
-        OnGameStart?.Invoke(this, EventArgs.Empty);
         winParticles.SetActive(false);
+        
+        //players[1].GetComponent<PlayerLogic>().OnTurnEnd += TurnEnds;
+        //players[0].GetComponent<PlayerLogic>().OnTurnEnd += players[1].GetComponent<PlayerLogic>().StartTurn;
+        //players[1].GetComponent<PlayerLogic>().OnTurnEnd += players[0].GetComponent<PlayerLogic>().StartTurn;
+        
         //board.EmptySlots();
     }
     
-    private void TurnEnds(object obj, EventArgs e)
+    private void TurnEnds()
     {
-        board.PlaceObject();
         OnTurnEnd?.Invoke(this, EventArgs.Empty);
     }
     public void GoLobby()
@@ -178,8 +193,9 @@ public class GameManager : MonoBehaviour
     {
         screenState = ScreenState.ACTIVE_GAME;
     }
-    private void GetPlayerNumber()
+    private int GetPlayerNumber()
     {
-        playerNumber = webSocket.GetPrio();
+
+        return webSocket.GetPrio();
     }
 }

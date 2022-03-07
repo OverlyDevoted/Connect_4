@@ -13,8 +13,9 @@ public class WebSocketReceiver : MonoBehaviour
         CLASS
     }
     WebSocket ws;
-    public delegate void OnStartGame();
-
+    //public delegate void OnStartGame();
+    public BoardManager board;
+    public GameObject slot;
     public WebState webState;
     public string methodType;
     public Client client;
@@ -22,7 +23,14 @@ public class WebSocketReceiver : MonoBehaviour
     public EventHandler OnConnect;
     public EventHandler OnJoin;
     public EventHandler OnLostConnection;
+    public delegate void OnStartGame();
     public OnStartGame onStartGame;
+    public PlayerLogic player;
+    private delegate void EventDelegate();
+    EventDelegate onMessageToDo;
+
+    private Move move;
+    bool shouldPlace = false;
     public TextMeshProUGUI log;
     public TMP_InputField inputField;
     public TMP_InputField serverCode;
@@ -32,8 +40,21 @@ public class WebSocketReceiver : MonoBehaviour
         log.text = "";
         webState = WebState.TYPE;
     }
+    private void Update()
+    {
+        if (onMessageToDo != null)
+        {
+            onMessageToDo();
+            if (shouldPlace)
+            {
+                board.PlaceObject(move.x);
+                player.StartTurn();
+                shouldPlace = false;
+            }
+            onMessageToDo = null;
+        }
+    }
 
-    
     public void ConnectServer()
     {
         if (ws != null)
@@ -61,29 +82,8 @@ public class WebSocketReceiver : MonoBehaviour
             switch (webState) {
                 case WebState.TYPE:
                     Response response = JsonUtility.FromJson<Response>(e.Data);
-                    switch (response.method)
-                    {
-                        case "connect":
-                            methodType = response.method;
-                            break;
-                        case "create":
-                            methodType = response.method;
-                            break;
-                        case "join":
-                            methodType = response.method;
-                            break;
-                        case "noGame":
-                            methodType = response.method;
-                            break;
-                        case "update":
-                            methodType = response.method;
-                            break;
-                        case "startgame":
-                            Debug.Log("Wrok2");
-                            methodType = response.method;
-                            break;
-                    }
-                    Debug.Log("to class");
+                    methodType = response.method;
+                    Debug.Log("ran type");
                     webState = WebState.CLASS;
                     break;
                 case WebState.CLASS:
@@ -91,42 +91,65 @@ public class WebSocketReceiver : MonoBehaviour
                     {
                         case "connect":
                             client = JsonUtility.FromJson<Client>(e.Data);
-                            Debug.Log(client.guid);
+                            onMessageToDo += () => { board.EmptySlots(); };
                             break;
                         case "create":
                             Game game = JsonUtility.FromJson<Game>(e.Data);
                             lobby = game;
-                            Debug.Log("E");
                             JoinGame();
                             break;
                         case "join":
                             lobby = JsonUtility.FromJson<Game>(e.Data);
-                            OnJoin?.Invoke(this, EventArgs.Empty);
+                            foreach (Client c in lobby.clients)
+                            { 
+                                if(c.guid == client.guid)
+                                {
+                                    client.prio = c.prio;
+                                }
+                            }
+                            onMessageToDo += () => { OnJoin?.Invoke(this, EventArgs.Empty); };
                             break;
                         case "update":
                             Client disconnected = JsonUtility.FromJson<Client>(e.Data);
-                            log.text += disconnected.guid + " has disconnected";
+                            onMessageToDo += () => { log.text += disconnected.guid + " has disconnected"; };
                             break;
                         case "noGame":
                             lobby = new Game();
                             ReasonMessage noGameReason = JsonUtility.FromJson<ReasonMessage>(e.Data);
-                            //notification.text = noGameReason.reason;
+                            onMessageToDo += () => { notification.text = noGameReason.reason; };
                             StartCoroutine(ShowNotification(noGameReason.reason));
                             break;
                         case "startgame":
-                            Debug.Log("WORK");
-                            onStartGame();
-                            Debug.Log("DO THEHING");
-                            ReasonMessage gameReason = JsonUtility.FromJson<ReasonMessage>(e.Data);
-                            StartCoroutine(ShowNotification(gameReason.reason));
+                            //ReasonMessage gameReason = JsonUtility.FromJson<ReasonMessage>(e.Data);
+                            //StartCoroutine(ShowNotification(gameReason.reason));
+                            onMessageToDo += () => {
+                                onStartGame();
+                            };
+                            break;
+                        case "move":
+                            move = JsonUtility.FromJson<Move>(e.Data);
+                            onMessageToDo += () =>
+                            {
+                                shouldPlace = true;
+                            };
+                            if(player.onTurnEndInt == null)
+                            {
+                                Debug.Log("null for some reason");
+                                player.onTurnEndInt += SendTurn;
+                                player.onTurnEndInt += board.PlaceObject;
+                            }
+                            break;
+                        default:
+                            Debug.Log("No such method as " + methodType);
                             break;
                     }
-                    Debug.Log("to type");
+                    Debug.Log("ran class");
                     webState = WebState.TYPE;
                     methodType = null;
                     break;
 
-            }     
+            }
+            //Debug.Log("exit switch");
         };
 
         if (ws.IsAlive)
@@ -154,7 +177,6 @@ public class WebSocketReceiver : MonoBehaviour
     }
     public void JoinGame()
     {
-        webState = WebState.TYPE;
         ws.Send("{" +
             "\"method\":\"join\"," +
             "\"clientId\":\"" + client.guid +
@@ -197,10 +219,21 @@ public class WebSocketReceiver : MonoBehaviour
             "\"}"
         );
     }
+    public void SendTurn(int x)
+    {
+        
+        ws.Send("{" +
+            "\"method\":\"play\"," +
+            "\"clientId\":\"" + client.guid +
+            "\",\"x\":\"" + x +
+            "\"}"
+        );
+    }
     public int GetPrio()
     {
         return client.prio;
     }
+
     [Serializable]
     public class ReasonMessage {
         public string reason;
@@ -253,6 +286,19 @@ public class WebSocketReceiver : MonoBehaviour
             this.clients = clients;
         }
         public Game()
+        {
+
+        }
+    }
+    [Serializable]
+    public class Move
+    {
+        public int x;
+        public Move(int x)
+        {
+            this.x = x;
+        }
+        public Move()
         {
 
         }

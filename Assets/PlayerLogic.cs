@@ -12,9 +12,14 @@ public class PlayerLogic : MonoBehaviour
     public States state;
     InputController input;
     BoardManager board;
-    public GameObject circlePrefab;
-    GameObject circle;
-    public EventHandler OnTurnEnd;
+    public GameObject playerOnePrefab;
+    public GameObject playerTwoPrefab;
+
+    public GameObject circle;
+    public delegate void EventDelegate();
+    public delegate void EventDelegateInt(int i);
+    public EventDelegate onTurnEnd;
+    public EventDelegateInt onTurnEndInt;
     bool isEnd;
     private void Awake()
     {
@@ -38,7 +43,9 @@ public class PlayerLogic : MonoBehaviour
                 if(board.CanPlaceInColumn(currentIndex))
                 {
                     if (input.OnClickedLeftClick == null)
+                    {
                         input.OnClickedLeftClick += PassTurn;
+                    }
                     return;
                 }
                 input.OnClickedLeftClick = null;
@@ -54,17 +61,17 @@ public class PlayerLogic : MonoBehaviour
         return newMouse;
     }
 
-    public void StartTurn(object obj, EventArgs e)
+    public void StartTurn()
     {
         if (isEnd)
             return;
-        state = States.MyTurn;
         SpawnCircle();
         board.SetCircle(circle);
+        state = States.MyTurn;
     }
     private void SpawnCircle()
     {
-        circle = Instantiate(circlePrefab, CalculateMouse(), Quaternion.identity);
+        circle = Instantiate(playerOnePrefab, CalculateMouse(), Quaternion.identity);
     }
     private void DespawnCircle()
     {
@@ -72,23 +79,31 @@ public class PlayerLogic : MonoBehaviour
             Destroy(circle);
     }
     private void PassTurn(object obj, EventArgs e)
-    { 
-        input.OnClickedLeftClick = null;
+    {
+        int placeX = (int)circle.transform.position.x + 3;
+        Debug.Log(onTurnEndInt);
+        onTurnEndInt(placeX);
         DespawnCircle();
         state = States.NotMyTurn;
-        OnTurnEnd?.Invoke(this, EventArgs.Empty);
+        input.OnClickedLeftClick = null;
     }
     private void EndGame(object obj, EventArgs e)
     {
         isEnd = true;
-        OnTurnEnd = null;
+       // onTurnEnd = null;
+        onTurnEndInt = null;
         input.OnClickedLeftClick = null;
         DespawnCircle();
         state = States.NotMyTurn;
     }
-    public void AllowToMove(object obj, EventArgs e)
+    public void AllowToMove()
     {
         isEnd = false;
     }
-
+    public bool isMyTurn()
+    {
+        if (state == States.MyTurn)
+            return true;
+        return false;
+    }
 }

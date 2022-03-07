@@ -2,24 +2,36 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using System.Linq;
 public class BoardManager : MonoBehaviour
 {
-    public List<GameObject> columns;
+    public Test thing;
+    public List<ColumnManager> columns;
     private Vector2 leftCorner;
     private Vector2 rightCorner;
    [SerializeField] GameObject circle;
     public EventHandler OnGameEnd;
     int filledColumns;
+    [SerializeField] PlayerLogic player;
+    public Color firstP;
+    public Color secondP;
     // Start is called before the first frame update
     void Start()
     {
         leftCorner = columns[0].transform.position;
         rightCorner = columns[columns.Count - 1].transform.position;
-        foreach(GameObject column in columns)
+        foreach(ColumnManager column in columns)
         {
-            column.GetComponent<ColumnManager>().OnFilled += CheckIfEnd;
+            column.OnFilled += CheckIfEnd;
         }
+        //EmptySlots();
+        //StartCoroutine(Clear());
         //Debug.Log(leftCorner + " " + rightCorner);
+    }
+    IEnumerator Clear()
+    {
+        yield return new WaitForSeconds(1f);
+        EmptySlots(); 
     }
     void CheckIfEnd(object obj, EventArgs e)
     {
@@ -41,11 +53,23 @@ public class BoardManager : MonoBehaviour
         return rightCorner;
     }
 
-    public void PlaceObject()
+    public void PlaceObject(int columnIndex)
     {
         //Debug.Log("Should place " + circle.name+"in the board column " + (circle.transform.position.x + 3));
-        int columnIndex = (int)circle.transform.position.x + 3;
-        int rowIndex = columns[columnIndex].GetComponent<ColumnManager>().PlaceCircle(circle, GetPlayer());
+        Color colorToUse;
+        if (player.isMyTurn())
+        {
+            Debug.Log("My turn place");
+            colorToUse = firstP;
+        }
+        else
+        {
+            Debug.Log("Not my turn");
+            colorToUse = secondP;
+            
+        }
+            
+        int rowIndex = columns[columnIndex].PlaceCircle(GetPlayer(), colorToUse);
         Vector2 start = new Vector2(columnIndex, rowIndex);
         for (int i = -1; i <= 1; i++)
         {
@@ -57,8 +81,6 @@ public class BoardManager : MonoBehaviour
                 CheckForWin(start, direction, GetPlayer(), 0);
             }
         }
-
-        
     }
 
     void CheckForWin(Vector2 start, Vector2 direction, SlotManager.Player player, int iteration)
@@ -87,10 +109,8 @@ public class BoardManager : MonoBehaviour
     }
     public SlotManager.Player GetPlayer()
     {
-        if(circle.CompareTag("Red"))
-        {
+        if (player.isMyTurn())
             return SlotManager.Player.Red;
-        }
         return SlotManager.Player.Yellow;
     }
     public void SetCircle(GameObject newCircle)
@@ -99,17 +119,18 @@ public class BoardManager : MonoBehaviour
     }
     public bool CanPlaceInColumn(int index)
     {
-        return columns[index].GetComponent<ColumnManager>().CanPlaceCircle();    
+        return columns[index].CanPlaceCircle();    
     }
     public SlotManager.Player GetOccupantAtPos(int x, int y)
     {
-        return columns[x].GetComponent<ColumnManager>().GetSlot(y).GetComponent<SlotManager>().GetOccupator();
+        return columns[x].GetSlot(y).GetOccupator();
     }
     public void EmptySlots()
     {
-        foreach(GameObject column in columns)
+        int columnsLenght = columns.Count;
+        for (int i=0;i<columnsLenght;i++)
         {
-            column.GetComponent<ColumnManager>().EmptySlots();
+            columns[i].EmptySlots();
         }
     }
 }
